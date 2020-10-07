@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 
 class Semaphore {
 public:
@@ -24,5 +25,5 @@ public:
 private:
     std::mutex mutex_;
     std::condition_variable condition_;
-    signed long lockCount = 0;
+    std::atomic_size_t lockCount = 0;
 };

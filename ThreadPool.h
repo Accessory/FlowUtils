@@ -8,12 +8,12 @@
 #include <queue>
 #include <atomic>
 #include "FlowLog.h"
-
+#include <memory>
 
 class ThreadPool {
 public:
 
-    ThreadPool(const size_t &threadLimit) {
+    ThreadPool(const size_t &threadLimit = std::thread::hardware_concurrency()) {
         this->threadLimit = threadLimit;
     }
 
@@ -52,7 +52,7 @@ private:
                 }).detach();
                 functions.pop();
             } catch (const std::system_error &e) {
-                LOG_WARNING << "Code " << e.code()
+                std::cout << "Code " << e.code()
                             << " meaning " << e.what() << '\n';
                 functions.pop();
                 --runningThreads;
