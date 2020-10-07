@@ -158,7 +158,7 @@ public:
         return 0;
     }
 
-    int parse(int argc, char *argv[]) {
+    int parse(const int argc, char *argv[]) {
         size_t indexPos = 0;
         for (int i = 1; i < argc; ++i) {
             std::string err;
