@@ -5,16 +5,45 @@
 #include <map>
 #include <string>
 #include <boost/algorithm/string.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 #include <regex>
+#include <set>
 
 namespace FlowString {
+
+    inline bool match(const std::string &value, const std::regex &rgx) {
+        return std::regex_match(value, rgx);
+    }
+
+    inline bool match(const std::string &value, const std::string &validation) {
+        std::regex rgx(validation);
+        return std::regex_match(value, rgx);
+    }
 
     inline std::vector<std::string> splitToStringVector(std::string line, std::string delimiter) {
         std::vector<std::string> rtn;
         boost::split(rtn, line, boost::is_any_of(delimiter));
 
+        return rtn;
+    }
+
+    inline std::vector<std::string> splitOnFirst(const std::string &line, const std::string &delimiter) {
+        std::vector<std::string> rtn;
+        const auto pos = line.find(delimiter);
+        rtn.emplace_back(line.substr(0, pos));
+        if (pos == std::string::npos)
+            return rtn;
+        rtn.emplace_back(line.substr(pos + 1));
+        return rtn;
+    }
+
+    inline std::vector<std::string> splitOnLast(const std::string &line, const std::string &delimiter) {
+        std::vector<std::string> rtn;
+        const auto pos = line.rfind(delimiter);
+        rtn.emplace_back(line.substr(0, pos));
+        if (pos == std::string::npos)
+            return rtn;
+        rtn.emplace_back(line.substr(pos + 1));
         return rtn;
     }
 
@@ -35,31 +64,53 @@ namespace FlowString {
         return text.substr(found);
     }
 
-    inline bool isNumber(const std::string &text) {
+    inline bool isInteger(const std::string &text) {
         return !text.empty() && std::find_if(text.begin(),
                                              text.end(),
-                                             [](char c) { return !std::isdigit(c) || c == '.' || c == ','; }) ==
+                                             [](char c) { return !std::isdigit(c); }) ==
                                 text.end();
     }
 
-    inline std::string join(const std::vector<std::string>& toJoin, const std::string& delimiter ){
+    inline bool isNumber(const std::string &text) {
+        return !text.empty() && std::find_if(text.begin(),
+                                             text.end(),
+                                             [](char c) { return !std::isdigit(c) && c != '.' && c != ','; }) ==
+                                text.end();
+    }
+
+    inline bool isBool(const std::string &text) {
+        return text == "true" || text == "True" || text == "TRUE" || text == "false" || text == "False" ||
+               text == "FALSE";
+    }
+
+    inline bool isTrue(const std::string &text) {
+        return text == "true" || text == "True" || text == "TRUE";
+    }
+
+    inline std::string join(const std::set<std::string> &toJoin, const std::string &delimiter) {
         return boost::join(toJoin, delimiter);
     }
 
-    inline std::string format(const std::string& text, size_t number) {
+    inline std::string join(const std::vector<std::string> &toJoin, const std::string &delimiter) {
+        return boost::join(toJoin, delimiter);
+    }
+
+    inline std::string format(const std::string &text, size_t number) {
         boost::format rtn(text);
         rtn % number;
         return rtn.str();
     }
 
-    inline std::string format(const std::string& text, int number) {
+    inline std::string format(const std::string &text, int number) {
         boost::format rtn(text);
+        rtn.exceptions(boost::io::all_error_bits ^ (boost::io::too_many_args_bit | boost::io::too_few_args_bit));
         rtn % number;
         return rtn.str();
     }
 
-    inline std::string format(const std::string& text, std::string input) {
+    inline std::string format(const std::string &text, std::string input) {
         boost::format rtn(text);
+        rtn.exceptions(boost::io::all_error_bits ^ (boost::io::too_many_args_bit | boost::io::too_few_args_bit));
         rtn % input;
         return rtn.str();
     }
@@ -84,7 +135,7 @@ namespace FlowString {
         }
     }
 
-    inline size_t findRegex(const std::string &text, const std::string &search, const int &position) {
+    inline size_t findRegex(const std::string &text, const std::string &search, const size_t &position) {
         std::smatch m;
         std::regex e(search);
         std::string s = text.substr(position);
@@ -117,7 +168,7 @@ namespace FlowString {
         std::vector<std::string> rtn;
 
         size_t start;
-        int ende;
+        size_t ende;
 
         do {
             start = text.find(from, position);
@@ -129,13 +180,6 @@ namespace FlowString {
         } while (position != std::string::npos);
 
         return rtn;
-    }
-
-    inline void stringToFile(const std::string &file, const std::string &text) {
-        std::ofstream myfile;
-        myfile.open(file);
-        myfile << text;
-        myfile.close();
     }
 
     inline std::vector<std::string>
@@ -154,10 +198,10 @@ namespace FlowString {
         return rtn;
     }
 
-    inline std::map<std::string, std::string>
+    inline std::unordered_map<std::string, std::string>
     getAllFromRegexGroups(const std::string &text, const std::string &search, const size_t group,
                           const size_t group2) {
-        std::map<std::string, std::string> rtn;
+        std::unordered_map<std::string, std::string> rtn;
         size_t position = 0;
         std::regex rgx(search);
         std::smatch mtch;
@@ -181,8 +225,8 @@ namespace FlowString {
         return mtch[group];
     }
 
-    inline std::map<std::string, std::string> findKeyValue(const std::string &text, const std::string &search) {
-        std::map<std::string, std::string> rtn;
+    inline std::unordered_map<std::string, std::string> findKeyValue(const std::string &text, const std::string &search) {
+        std::unordered_map<std::string, std::string> rtn;
 
         size_t position = 0;
         std::regex rgx(search);
@@ -219,19 +263,50 @@ namespace FlowString {
         boost::algorithm::to_lower(text);
     }
 
-    inline void underscoreToCamelCase(std::string &text, bool firstLetter = false) {
+    inline std::string lower(std::string text) {
+        boost::algorithm::to_lower(text);
+        return text;
+    }
+
+    inline void underscoreToCamelCase(std::string &text, bool firstLetter = false, bool firstLetterLower = false) {
         if (text.empty())
             return;
 
-        if (firstLetter)
-            text.replace(0, 1, 1, static_cast<char>(toupper((text.at(0)))));
-
+        if (firstLetter) {
+            if (firstLetterLower) {
+                text.replace(0, 1, 1, static_cast<char>(tolower((text.at(0)))));
+            } else {
+                text.replace(0, 1, 1, static_cast<char>(toupper((text.at(0)))));
+            }
+        }
         auto pos = text.find('_');
         while (pos != std::string::npos) {
             if (isalpha(text.at(pos + 1)))
                 text.replace(pos, 2, 1, static_cast<char>(toupper((text.at(pos + 1)))));
             pos = text.find('_', ++pos);
         }
+    }
+
+    inline void toUnderScore(std::string &text, bool firstLetter = false) {
+        if (text.empty())
+            return;
+
+        if (isupper(text.at(0))) {
+            text.replace(0, 1, 1, static_cast<char>(tolower((text.at(0)))));
+        }
+        if (firstLetter) {
+            text.insert(0, "_");
+        }
+
+        for (int i = 1; i < text.size(); ++i) {
+            if (isupper(text.at(i))) {
+                char toReplace[2];
+                toReplace[0] = '_';
+                toReplace[1] = static_cast<char>(tolower((text.at(i))));
+                text.replace(i, 1, toReplace, 2);
+            }
+        }
+
     }
 
     inline void slashToCamelCase(std::string &text, bool firstLetter = false) {
@@ -313,6 +388,11 @@ namespace FlowString {
         }
         return one.size() < two.size();
     }
+
+    struct {
+        bool operator()(const std::string &a, const std::string &b) const { return alphaNumSort(a, b); }
+    } alphaNumSort_Struct;
+
 };
 
 

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fstream>
 #include "FlowParser.h"
+#include <filesystem>
 
 struct FlowValue {
     std::string value;
@@ -138,6 +139,8 @@ public:
                 pos = args.find_first_not_of(' ', pos);
                 start = pos;
                 char ending = args.at(pos) == '"' ? '"' : ' ';
+                if (ending == '"')
+                    ++start;
                 pos = args.find(ending, ++pos);
                 arg = pos == std::string::npos ? args.substr(start) : args.substr(start, pos - start);
             }
@@ -187,14 +190,25 @@ public:
         return 0;
     }
 
-    bool parseFile(const std::string &file) {
+    bool exists(const std::string &path) {
+        if (path.empty())
+            return false;
+        std::filesystem::path p(path);
+        return std::filesystem::exists(p);
+    }
+
+    bool parseFile(const std::string &file, bool override = false) {
+        if (!exists(file)) {
+            return false;
+        }
+
         std::string line;
         std::ifstream ifs(file);
         while (!ifs.eof()) {
             std::getline(ifs, line);
             size_t pos = 0;
             FlowParser::gotoNextNonWhite(line, pos);
-            if (line.at(pos) == '#')
+            if (line.empty() || line.at(pos) == '#')
                 continue;
 
             auto key = FlowParser::goToOne(line, " :\n\r", pos);
@@ -203,6 +217,9 @@ public:
 
             auto fo = getFlowOption(key);
             if (fo == nullptr)
+                continue;
+
+            if (!override && hasOption(key))
                 continue;
 
             if (fo->isList) {
@@ -236,32 +253,36 @@ public:
         return findInValues(name) != _values.end();
     }
 
-    std::string getString(const std::string &name) {
+    std::string getString(const std::string &name, const std::string &default_value = "") {
         auto item = findInValues(name);
         if (item == _values.end())
-            return "";
+            return default_value;
 
         return item->second.value;
     }
 
-    float getFloat(const std::string &name) {
+    float getFloat(const std::string &name, const float& default_value = 0) {
         auto val = getString(name);
+        if(val.empty())
+            return default_value;
         return std::stof(val);
     }
 
-    bool getBool(const std::string &name) {
+    bool getBool(const std::string &name, const bool default_value = false) {
         auto item = findInValues(name);
         if (item == _values.end())
-            return false;
-        if(item->first->isFlag){
+            return default_value;
+        if (item->first->isFlag) {
             return item->second.isSet;
         }
-        const auto& val = item->second.value;
+        const auto &val = item->second.value;
         return val == "True" || val == "true";
     }
 
-    size_t getSizeT(const std::string &name) {
+    size_t getSizeT(const std::string &name, const size_t& default_value = 0) {
         auto val = getString(name);
+        if(val.empty())
+            return default_value;
         return std::stoul(val);
     }
 
@@ -307,7 +328,7 @@ public:
 
 
 private:
-    std::map<std::shared_ptr<FlowOption>, FlowValue>::iterator findInValues(const std::string &name) {
+    std::unordered_map<std::shared_ptr<FlowOption>, FlowValue>::iterator findInValues(const std::string &name) {
         for (auto itr = _values.begin(); itr != _values.end(); ++itr) {
             if (itr->first->var1 == name || itr->first->var2 == name)
                 return itr;
@@ -370,5 +391,5 @@ private:
 
     std::set<std::shared_ptr<FlowOption>> _options;
     std::vector<std::shared_ptr<FlowOption>> _indexOptions;
-    std::map<std::shared_ptr<FlowOption>, FlowValue> _values;
+    std::unordered_map<std::shared_ptr<FlowOption>, FlowValue> _values;
 };

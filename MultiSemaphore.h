@@ -17,7 +17,7 @@ public:
 
     void wait() {
         std::unique_lock<std::mutex> lock(mutex_);
-        while (lockCount > 1) {
+        while (lockCount > 0) {
             condition_.wait(lock);
         }
     }

@@ -24,6 +24,36 @@ namespace FlowVParser {
     }
 
     inline std::vector<unsigned char>::iterator
+    findLastData(std::vector<unsigned char>::iterator pos, const std::vector<unsigned char>::iterator begin) {
+        if (begin == pos)
+            return pos;
+        --pos;
+        if (*pos == '-') {
+            if (begin == pos)
+                return pos;
+            --pos;
+        }
+        if (*pos == '-') {
+            if (begin == pos)
+                return pos;
+            --pos;
+        }
+        if (*pos == '\n') {
+            if (begin == pos)
+                return pos;
+            --pos;
+        }
+        if (*pos == '\r') {
+            if (begin == pos)
+                return pos;
+            --pos;
+        }
+        ++pos;
+
+        return pos;
+    }
+
+    inline std::vector<unsigned char>::iterator
     find_first(const std::vector<unsigned char> &data, const char &c,
                std::vector<unsigned char>::iterator pos) {
         while (pos != data.end()) {

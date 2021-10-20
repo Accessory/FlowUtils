@@ -1,5 +1,4 @@
 #include <FlowUtils/FlowLog.h>
-#include <boost/dll.hpp>
 
 BOOST_DLL_ALIAS(logging::setLogLevel,  // <-- this function is exported with...
                 setLogLevel            // <-- ...this alias name

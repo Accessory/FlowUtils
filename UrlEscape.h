@@ -1,15 +1,65 @@
 #pragma once
+#pragma warning(push)
+#pragma warning(disable: 4566)
 
-#include <map>
+#include <unordered_map>
 #include <string>
+#include <sstream>
+#include <iomanip>
 
 class UrlEscape {
 public:
+    static std::string url_encode(const std::string &value) {
+        std::ostringstream escaped;
+        escaped.fill('0');
+        escaped << std::hex;
+
+        for (std::string::const_iterator i = value.begin(), n = value.end(); i != n; ++i) {
+            std::string::value_type c = (*i);
+
+            // Keep alphanumeric and other accepted characters intact
+            if (isalnum((unsigned char) c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                escaped << c;
+                continue;
+            }
+
+            // Any other characters are percent-encoded
+            escaped << std::uppercase;
+            escaped << '%' << std::setw(2) << int((unsigned char) c);
+            escaped << std::nouppercase;
+        }
+
+        return escaped.str();
+    }
+
+    static std::string url_decode(const std::string &value) {
+        std::ostringstream decoded;
+        decoded.fill('0');
+        for (std::string::const_iterator i = value.begin(), n = value.end(); i != n; ++i) {
+            if (*i == '%') {
+                const auto ip1 = i + 1;
+                const auto ip2 = i + 2;
+                if (*ip1 && *ip2) {
+                    unsigned char c = from_hex((unsigned char) *ip1) << 4 | from_hex((unsigned char) *ip2);
+                    decoded << c;
+                    i += 2;
+                }
+            } else if (*i == '+') {
+                decoded << ' ';
+            } else {
+                decoded << *i;
+            }
+        }
+
+        return decoded.str();
+    }
+
     static void UrlDecode(std::string &url) {
         size_t pos = 0;
         goTo(url, "%", pos);
         while (pos != std::string::npos) {
-            auto itr = _decodeUrlMap.find(url.substr(pos, 3));
+            const auto toTest = url.substr(pos, 3);
+            auto itr = _decodeUrlMap.find(toTest);
             if (itr->second == "u2") {
                 auto uitr = _decodeUrlMapUnicode2.find(url.substr(pos, 6));
                 if (uitr != _decodeUrlMapUnicode2.end()) {
@@ -45,7 +95,8 @@ public:
         size_t pos = 0;
         goToOne(url, encodeString, pos);
         while (pos != std::string::npos) {
-            auto itr = _encodeUrlMap.find(url.substr(pos, 1));
+            const auto toTest = url.substr(pos, 1);
+            auto itr = _encodeUrlMap.find(toTest);
             if (itr != _encodeUrlMap.end()) {
                 url.replace(pos, 1, itr->second);
             }
@@ -68,6 +119,10 @@ public:
     }
 
 private:
+    static char from_hex(char ch) {
+        return isdigit(ch) ? ch - '0' : tolower(ch) - 'a' + 10;
+    }
+
     static inline const std::string goTo(const std::string &text, const std::string &toGoTo, size_t &pos) {
         size_t start = pos;
         pos = text.find(toGoTo, pos);
@@ -80,7 +135,100 @@ private:
         return text.substr(start, pos - start);
     }
 
-    static inline std::map<std::string, std::string> _decodeUrlMap = {
+    static inline std::unordered_map<std::string, std::string> _decodeUrlMap = {
+            {"%27", "'"},
+            {"%28", "("},
+            {"%29", ")"},
+            {"%2A", "*"},
+            {"%2B", "+"},
+            {"%2C", ","},
+            {"%2D", "-"},
+            {"%2E", "."},
+            {"%2F", "/"},
+            {"%2a", "*"},
+            {"%2b", "+"},
+            {"%2c", ","},
+            {"%2d", "-"},
+            {"%2e", "."},
+            {"%2f", "/"},
+            {"%30", "0"},
+            {"%31", "1"},
+            {"%32", "2"},
+            {"%33", "3"},
+            {"%34", "4"},
+            {"%35", "5"},
+            {"%36", "6"},
+            {"%37", "7"},
+            {"%38", "8"},
+            {"%39", "9"},
+            {"%41", "A"},
+            {"%42", "B"},
+            {"%43", "C"},
+            {"%44", "D"},
+            {"%45", "E"},
+            {"%46", "F"},
+            {"%47", "G"},
+            {"%48", "H"},
+            {"%49", "I"},
+            {"%4A", "J"},
+            {"%4B", "K"},
+            {"%4C", "L"},
+            {"%4D", "M"},
+            {"%4E", "N"},
+            {"%4F", "O"},
+            {"%4a", "j"},
+            {"%4b", "k"},
+            {"%4c", "l"},
+            {"%4d", "m"},
+            {"%4e", "n"},
+            {"%4f", "o"},
+            {"%50", "P"},
+            {"%51", "Q"},
+            {"%52", "R"},
+            {"%53", "S"},
+            {"%54", "T"},
+            {"%55", "U"},
+            {"%56", "V"},
+            {"%57", "W"},
+            {"%58", "X"},
+            {"%59", "Y"},
+            {"%5A", "Z"},
+            {"%5F", "_"},
+            {"%5a", "z"},
+            {"%5f", "_"},
+            {"%61", "a"},
+            {"%62", "b"},
+            {"%63", "c"},
+            {"%64", "d"},
+            {"%65", "e"},
+            {"%66", "f"},
+            {"%67", "g"},
+            {"%68", "h"},
+            {"%69", "i"},
+            {"%6A", "j"},
+            {"%6B", "k"},
+            {"%6C", "l"},
+            {"%6D", "m"},
+            {"%6E", "n"},
+            {"%6F", "o"},
+            {"%6a", "j"},
+            {"%6b", "k"},
+            {"%6c", "l"},
+            {"%6d", "m"},
+            {"%6e", "n"},
+            {"%6f", "o"},
+            {"%70", "p"},
+            {"%71", "q"},
+            {"%72", "r"},
+            {"%73", "s"},
+            {"%74", "t"},
+            {"%75", "u"},
+            {"%76", "v"},
+            {"%77", "w"},
+            {"%78", "x"},
+            {"%79", "y"},
+            {"%7A", "z"},
+            {"%7a", "z"},
             {"%20", " "},
             {"%21", "!"},
             {"%25", "%"},
@@ -93,25 +241,47 @@ private:
             {"%3D", "="},
             {"%3E", ">"},
             {"%3F", "?"},
+            {"%2c", ","},
+            {"%2f", "/"},
+            {"%3a", ":"},
+            {"%3b", ";"},
+            {"%3c", "<"},
+            {"%3d", "="},
+            {"%3e", ">"},
+            {"%3f", "?"},
             {"%40", "@"},
             {"%5B", "["},
             {"%5C", "\\"},
             {"%5D", "]"},
             {"%5E", "^"},
+            {"%5b", "["},
+            {"%5c", "\\"},
+            {"%5d", "]"},
+            {"%5e", "^"},
             {"%60", "`"},
             {"%7B", "{"},
             {"%7C", "|"},
             {"%7D", "}"},
             {"%7E", "~"},
             {"%2F", "/"},
+            {"%7b", "{"},
+            {"%7c", "|"},
+            {"%7d", "}"},
+            {"%7e", "~"},
+            {"%80", "`"},
+            {"%99", "™"},
+            {"%2f", "/"},
             {"%23", "#"},
             {"%27", "'"},
             {"%26", "&"},
             {"%E2", "u3"},
             {"%C3", "u2"},
             {"%C2", "u2"},
+            {"%e2", "u3"},
+            {"%c3", "u2"},
+            {"%c2", "u2"},
     };
-    static inline std::map<std::string, std::string> _decodeUrlMapUnicode2 = {
+    static inline std::unordered_map<std::string, std::string> _decodeUrlMapUnicode2 = {
             {"%C2%A0", "\u00A0"},
             {"%C2%A1", "\u00A1"},
             {"%C2%A2", "\u00A2"},
@@ -208,7 +378,8 @@ private:
             {"%C3%BE", "\u00FE"},
             {"%C3%BF", "\u00FF"},
     };
-    static inline std::map<std::string, std::string> _decodeUrlMapUnicode3 = {
+    static inline std::unordered_map<std::string, std::string> _decodeUrlMapUnicode3 = {
+            {"%E2%80%99", "’"},
             {"%E2%98%80", "\u2600"},
             {"%E2%98%81", "\u2601"},
             {"%E2%98%82", "\u2602"},
@@ -596,7 +767,7 @@ private:
     };
 
 
-    static inline std::map<std::string, std::string> _encodeUrlMap = {
+    static inline std::unordered_map<std::string, std::string> _encodeUrlMap = {
             {" ",  "%20"},
             {"!",  "%21"},
             {"%",  "%25"},
@@ -625,3 +796,5 @@ private:
 
     static inline std::string encodeString = " !%+,:;<=>?@[\\]^`{|}~/#&'";
 };
+
+#pragma warning(pop)

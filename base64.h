@@ -2,7 +2,8 @@
 
 #include <string>
 #include <vector>
-
+#pragma warning(push)
+#pragma warning(disable: 4996 4267)
 
 namespace Base64 {
 
@@ -13,7 +14,7 @@ namespace Base64 {
 
     inline bool is_base64(unsigned char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
-    inline std::string base64_encode(unsigned char const *bytes_to_encode, unsigned int in_len) {
+    inline std::string base64_encode(unsigned char const *bytes_to_encode, size_t in_len) {
         std::string ret;
         int i = 0;
         int j = 0;
@@ -58,7 +59,7 @@ namespace Base64 {
     }
 
     inline std::vector<unsigned char> base64_decode_to_vector(std::string const &encoded_string) {
-        int in_len = encoded_string.size();
+        size_t in_len = encoded_string.size();
         int i = 0;
         int j = 0;
         int in_ = 0;

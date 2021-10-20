@@ -37,6 +37,8 @@ public:
         }
     }
 
+    size_t threadLimit;
+
 private:
     void startThreads() {
         while (runningThreads < threadLimit && !functions.empty()) {
@@ -61,7 +63,7 @@ private:
     }
 
     std::queue<std::shared_ptr<std::function<void()>>> functions;
-    size_t threadLimit;
+
     std::atomic_size_t runningThreads = {0};
     MultiSemaphore toWaitFor;
     std::mutex poolMutex;

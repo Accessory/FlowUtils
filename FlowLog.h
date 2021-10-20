@@ -88,7 +88,12 @@ namespace logging {
         ~LOGGER() {
             std::lock_guard<std::mutex> lock(loggingMutex);
             if (currentLogLevel <= level) {
-                std::cout << buffer.str() << std::endl << std::flush;
+                #ifdef _WIN32
+                std::cout << buffer.str() << "\r\n";
+                #else
+                std::cout << buffer.str() << '\n';
+                #endif
+//                std::cout << buffer.str() << std::endl;
                 if (logFile != nullptr && logFile->is_open()) {
                     *logFile << buffer.str() << std::endl << std::flush;
                 }

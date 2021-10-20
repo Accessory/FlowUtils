@@ -23,7 +23,7 @@ set(SOURCE
         FlowJson.h
         FlowOpenSSL.h
         PriorityThreadPool.h
-        FlowRandom.h WorkerPool.h Worker.h)
+        FlowRandom.h WorkerPool.h Worker.h FlowArgon2.h FlowExec.h IdleManager.h IdleObject.h FlowTime.h LifetimeClock.h)
 
 add_library(FlowUtils OBJECT ${SOURCE})
 

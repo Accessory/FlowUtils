@@ -7,37 +7,26 @@
 #include "MultiSemaphore.h"
 #include <queue>
 #include "FlowLog.h"
-#include "Worker.h"
+#include "ContextWorker.h"
 #include <functional>
 #include <map>
 
-class WorkerPool {
+template<class ContextType>
+class ContextWorkerPool {
 public:
-    WorkerPool(const size_t &workerCount = std::thread::hardware_concurrency()) : workerCount(workerCount) {
+    ContextWorkerPool(const std::vector<std::shared_ptr<ContextWorker<ContextType>>>& worker) : workerCount(worker.size()) {
+        for(auto& item : worker) {
+            registerWorker(item);
+        }
+    }
+    ContextWorkerPool(const size_t &workerCount = std::thread::hardware_concurrency()) : workerCount(workerCount) {
         for (int i = 0; i < workerCount; ++i) {
-            auto worker = std::make_shared<Worker>(workerId);
-            workerMap[workerId] = worker;
-            ++workerId;
-            const auto onIdleCallback = std::make_shared<std::function<void(Worker *worker)>>([&](Worker *worker) {
-                std::unique_lock<std::mutex> lock(poolMutex);
-                toWaitFor.unlock();
-                if (!isStopping)
-                    idleWorker.push(workerMap.at(worker->getId()));
-                startWorker();
-//                LOG_INFO << "Idle: "<< "Locks " << toWaitFor.count() << " Tasks " << tasks.size();
-            });
-            worker->onIdle(onIdleCallback);
-            const auto onStopCallback = std::make_shared<std::function<void(Worker *worker)>>([&](Worker *worker) {
-                toWaitFor.unlock();
-                startWorker();
-                LOG_INFO << "Stop: " << "Locks " << toWaitFor.count() << " Tasks " << tasks.size();
-            });
-            worker->onStop(onStopCallback);
-            idleWorker.push(worker);
+            auto worker = std::make_shared<ContextWorker<ContextType>>(workerId++);
+            registerWorker(worker);
         }
     }
 
-    ~WorkerPool() {
+    ~ContextWorkerPool() {
         stop();
     }
 
@@ -45,7 +34,7 @@ public:
         toWaitFor.wait();
     }
 
-    void addTask(std::shared_ptr<std::function<void()>> function) {
+    void addTask(std::shared_ptr<std::function<void(ContextType)>> function) {
         std::lock_guard guard(tasksMutex);
         tasks.emplace(function);
         toWaitFor.addLock();
@@ -77,6 +66,26 @@ public:
     }
 
 private:
+    void registerWorker(const std::shared_ptr<ContextWorker<ContextType>>& worker) {
+        workerMap[worker->id] = worker;
+        const auto onIdleCallback = std::make_shared<std::function<void(ContextWorker<ContextType> *worker)>>([&](ContextWorker<ContextType> *worker) {
+            std::unique_lock<std::mutex> lock(poolMutex);
+            toWaitFor.unlock();
+            if (!isStopping)
+                idleWorker.push(workerMap.at(worker->getId()));
+            startWorker();
+//                LOG_INFO << "Idle: "<< "Locks " << toWaitFor.count() << " Tasks " << tasks.size();
+        });
+        worker->onIdle(onIdleCallback);
+        const auto onStopCallback = std::make_shared<std::function<void(ContextWorker<ContextType> *worker)>>([&](ContextWorker<ContextType> *worker) {
+            toWaitFor.unlock();
+            startWorker();
+            LOG_INFO << "Stop: " << "Locks " << toWaitFor.count() << " Tasks " << tasks.size();
+        });
+        worker->onStop(onStopCallback);
+        idleWorker.push(worker);
+    }
+
     void startWorker() {
         std::lock_guard guard(tasksMutex);
         while (!tasks.empty() && !idleWorker.empty()) {
@@ -103,11 +112,11 @@ private:
     bool isStopping = false;
     bool isJoin = false;
     std::atomic_size_t workerId;
-    std::queue<std::shared_ptr<std::function<void()>>> tasks;
+    std::queue<std::shared_ptr<std::function<void(ContextType)>>> tasks;
     MultiSemaphore toWaitFor;
     std::mutex poolMutex;
     std::mutex tasksMutex;
     size_t workerCount;
-    std::queue<std::shared_ptr<Worker>> idleWorker;
-    std::unordered_map<size_t, std::shared_ptr<Worker>> workerMap;
+    std::queue<std::shared_ptr<ContextWorker<ContextType>>> idleWorker;
+    std::unordered_map<size_t, std::shared_ptr<ContextWorker<ContextType>>> workerMap;
 };

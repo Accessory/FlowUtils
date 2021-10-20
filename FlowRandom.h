@@ -1,6 +1,8 @@
 #pragma once
 
 #include <random>
+#pragma warning(push)
+#pragma warning(disable: 4244 4267)
 
 namespace FlowRandom {
 
@@ -40,6 +42,10 @@ namespace FlowRandom {
         return distribution(generator);
     }
 
+    inline unsigned char randomChar() {
+        return FlowRandom::RandomSizeT(255);
+    }
+
     inline bool RandomTrue(double chance, double in) {
         static std::mt19937 generator(std::time(nullptr));
         std::uniform_real_distribution<double> distribution(0, in);
@@ -64,6 +70,15 @@ namespace FlowRandom {
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz";
 
+    inline static std::vector<unsigned char> getRandomBytes(const size_t lenght = 32){
+        std::vector<unsigned char> bytes;
+        bytes.reserve(lenght);
+        for(size_t i = 0; i < lenght; ++i){
+            bytes.emplace_back(randomChar());
+        }
+        return bytes;
+    }
+
     inline static std::string getRandomString(size_t len = 5, const std::string &charSet = "") {
         std::string rtn;
 
@@ -80,3 +95,4 @@ namespace FlowRandom {
         return rtn;
     }
 }
+#pragma warning( pop )

@@ -1,17 +1,29 @@
 #pragma once
 
-#include <rapidjson/document.h>
+#ifndef RAPIDJSON_HAS_STDSTRING
+#define RAPIDJSON_HAS_STDSTRING 1
+#endif
+
 #include <map>
 #include <vector>
 #include <string>
 #include <set>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
 #include "FlowLog.h"
-#include <rapidjson/prettywriter.h>
 #include "FlowFile.h"
 #include "FlowString.h"
+#include <algorithm>
+
+#ifdef GetObject
+#undef GetObject
+#endif
+
+#include <rapidjson/document.h>
 #include <rapidjson/pointer.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/schema.h>
+#include <rapidjson/filereadstream.h>
 
 namespace FlowJson {
 
@@ -39,6 +51,56 @@ namespace FlowJson {
         rapidjson::Document document;
         document.Parse(txt.c_str());
         return document;
+    }
+
+
+    inline rapidjson::Document parseJson(const std::string &txt, const std::string &schema, bool &error) {
+        rapidjson::Document rtn;
+        rapidjson::Document document_schema;
+        document_schema.Parse(schema.c_str());
+
+        if (document_schema.HasParseError()) {
+            LOG_WARNING << "Schema is not valid.";
+            error = true;
+            return rtn;
+        }
+        rapidjson::SchemaDocument schema_document(document_schema);
+        rapidjson::SchemaValidator schemaValidator(schema_document);
+
+        rtn.Parse(txt.c_str());
+        if (rtn.HasParseError()) {
+            LOG_WARNING << "Invalid JSON.";
+            error = true;
+            return rtn;
+        }
+        rtn.Accept(schemaValidator);
+        if (!schemaValidator.IsValid()) {
+            rapidjson::StringBuffer sb;
+            schemaValidator.GetInvalidSchemaPointer().StringifyUriFragment(sb);
+            LOG_WARNING << "Invalid schema: " << sb.GetString();
+            LOG_WARNING << "Invalid keyword: " << schemaValidator.GetInvalidSchemaKeyword();
+            sb.Clear();
+            schemaValidator.GetInvalidDocumentPointer().StringifyUriFragment(sb);
+            LOG_WARNING << "Invalid document: " << sb.GetString();
+            error = true;
+            return rtn;
+        }
+        error = false;
+        return rtn;
+    }
+
+
+    inline bool parseJson(const std::string &txt, const std::string &schema, rapidjson::Document &out) {
+        rapidjson::Document document_schema;
+        document_schema.Parse(schema.c_str());
+        if (document_schema.HasParseError()) {
+            return true;
+        }
+        rapidjson::SchemaDocument schema_document(document_schema);
+        rapidjson::SchemaValidator schemaValidator(schema_document);
+        out.Accept(schemaValidator);
+        out.Parse(txt.c_str());
+        return out.HasParseError() || !schemaValidator.IsValid();
     }
 
     inline void logJson(const rapidjson::Document &document, bool traceOnly = true) {
@@ -78,7 +140,7 @@ namespace FlowJson {
                 const rapidjson::Pointer pointer(cpath.c_str());
                 auto value = GetValueByPointer(doc, pointer);
                 if (value == nullptr) {
-                    LOG_WARNING << "Could not find value: " << cpath;
+                    LOG_TRACE << "Could not find value: " << cpath;
                     continue;
                 }
                 if (value->GetType() == rapidjson::kArrayType) {
@@ -106,6 +168,13 @@ namespace FlowJson {
     inline rapidjson::Value cS(const std::string &txt, rapidjson::Document &document) {
         rapidjson::Value rtn(rapidjson::kStringType);
         rtn.SetString(txt.c_str(), txt.size(), document.GetAllocator());
+        return rtn;
+    }
+
+    // Create String
+    inline rapidjson::Value cS(const std::string &txt, rapidjson::MemoryPoolAllocator<> &allocator) {
+        rapidjson::Value rtn(rapidjson::kStringType);
+        rtn.SetString(txt.c_str(), txt.size(), allocator);
         return rtn;
     }
 
@@ -162,7 +231,7 @@ namespace FlowJson {
             }
 
             std::vector<std::string> token = FlowString::splitNotEmpty(from, "/");
-            if (token.size() > i && FlowString::isNumber(token.at(i))) {
+            if (token.size() > i && FlowString::isInteger(token.at(i))) {
                 np += "/" + token.at(i);
             } else {
                 np += "/" + toToken.at(i);
@@ -172,14 +241,14 @@ namespace FlowJson {
         return np;
     }
 
-    inline std::map<std::string, std::set<typeName>> generlizeJson(const std::string &file) {
+    inline std::unordered_map<std::string, std::set<typeName>> generlizeJson(const std::string &file) {
         std::string value = FlowFile::fileToString(file);
         auto newJson = parseJson(value);
 
         std::vector<std::string> mis;
 
         mis.emplace_back("");
-        std::map<std::string, std::vector<typeName>> rtn;
+        std::unordered_map<std::string, std::vector<typeName>> rtn;
 
         while (!mis.empty()) {
             auto cPos = mis.front();
@@ -189,7 +258,7 @@ namespace FlowJson {
             size_t pos = 1;
             while (tokens.size() >= ++pos) {
                 cObject = tokens.at(tokens.size() - pos);
-                if (!FlowString::isNumber(cObject)) {
+                if (!FlowString::isInteger(cObject)) {
                     break;
                 }
             }
@@ -251,11 +320,12 @@ namespace FlowJson {
             mis.erase(mis.begin());
         }
         LOG_INFO << rtn.size();
-        return std::map<std::string, std::set<typeName >>();
+        return std::unordered_map<std::string, std::set<typeName >>();
     }
 
     //CamelCase rapidjson::Value
-    inline std::string CCValue(const std::string &value, const std::string &path, const bool firstLetter) {
+    inline std::string CCValue(const std::string &value, const std::string &path, const bool firstLetter,
+                               const bool firstLetterLower = false) {
         rapidjson::Document doc = parseJson(value);
         std::vector<std::string> paths = findAllJsonValues(doc, path);
         for (auto &path : paths) {
@@ -263,7 +333,26 @@ namespace FlowJson {
             auto val = GetValueByPointer(doc, pointer);
             if (val->GetType() == rapidjson::kStringType) {
                 std::string sval = val->GetString();
-                FlowString::underscoreToCamelCase(sval, firstLetter);
+                FlowString::underscoreToCamelCase(sval, firstLetter, firstLetterLower);
+                rapidjson::Value newVal(sval.c_str(), doc.GetAllocator());
+                SetValueByPointer(doc, pointer, newVal);
+            }
+        }
+
+        return docToString(doc);
+    }
+
+    //CamelCase rapidjson::Value
+    inline std::string underScoreValue(const std::string &value, const std::string &path, const bool firstLetter,
+                                       const bool firstLetterLower = false) {
+        rapidjson::Document doc = parseJson(value);
+        std::vector<std::string> paths = findAllJsonValues(doc, path);
+        for (auto &path : paths) {
+            rapidjson::Pointer pointer(path.c_str());
+            auto val = GetValueByPointer(doc, pointer);
+            if (val->GetType() == rapidjson::kStringType) {
+                std::string sval = val->GetString();
+                FlowString::toUnderScore(sval, false);
                 rapidjson::Value newVal(sval.c_str(), doc.GetAllocator());
                 SetValueByPointer(doc, pointer, newVal);
             }
@@ -300,34 +389,22 @@ namespace FlowJson {
     }
 
 
-    inline std::string getValue(const std::string &value, const std::string &path) {
-        rapidjson::Document doc = parseJson(value);
-        rapidjson::Pointer pointer(path.c_str());
-        auto val = GetValueByPointer(doc, pointer);
-        if (!val->IsNull()) {
-            switch (val->GetType()) {
-                case rapidjson::kStringType:
-                    return std::string(val->GetString());
-                case rapidjson::kNumberType:
-                    return std::to_string(val->GetFloat());
-                default:
-                    break;
-            }
-        }
-        return "";
-    }
-
-
     inline std::string orElse(const rapidjson::Value &value, const std::string &var, const std::string &elseString) {
         if (value.HasMember(var.c_str()) && !value[var.c_str()].IsNull())
             return value[var.c_str()].GetString();
         return elseString;
     }
 
+    inline bool exists(const rapidjson::Value &value, const std::string &path) {
+        rapidjson::Pointer pointer(path.c_str());
+        auto val = GetValueByPointer(value, pointer);
+        return val != nullptr && val->GetType() != rapidjson::kNullType;
+    }
+
     inline std::string getValue(const rapidjson::Value &value, const std::string &path) {
         rapidjson::Pointer pointer(path.c_str());
         auto val = GetValueByPointer(value, pointer);
-        if(val == nullptr)
+        if (val == nullptr)
             return "";
 
         switch (val->GetType()) {
@@ -351,6 +428,12 @@ namespace FlowJson {
         }
 
         return "";
+    }
+
+    inline std::string getValue(const std::string &value, const std::string &path) {
+        rapidjson::Document doc = parseJson(value);
+        rapidjson::Pointer pointer(path.c_str());
+        return getValue(doc, path);
     }
 
     inline std::string getValueOr(const rapidjson::Value &value, const std::string &path, const std::string &orValue) {
@@ -398,7 +481,7 @@ namespace FlowJson {
     }
 
     inline void modifyDocumentByMap(rapidjson::Document &doc, const std::string &path,
-                                    const std::map<std::string, std::string> &modifier) {
+                                    const std::unordered_map<std::string, std::string> &modifier) {
         std::vector<std::string> paths = findAllJsonValues(doc, path);
         bool hasDefault = modifier.find("default") != modifier.end();
         for (auto &path : paths) {
@@ -421,7 +504,7 @@ namespace FlowJson {
     }
 
     inline std::string modifyValueByMap(const std::string &value, const std::string &path,
-                                        const std::map<std::string, std::string> &modifier) {
+                                        const std::unordered_map<std::string, std::string> &modifier) {
         rapidjson::Document doc = parseJson(value);
         modifyDocumentByMap(doc, path, modifier);
         return docToString(doc);
@@ -430,33 +513,44 @@ namespace FlowJson {
     inline std::string copyValue(const std::string &value, const std::string &path, const std::string &copyPath) {
         rapidjson::Document doc = parseJson(value);
         std::vector<std::string> paths = findAllJsonValues(doc, path);
-        std::vector<std::string> copyPathToken = FlowString::splitNotEmpty(copyPath, "/");
         for (auto &path : paths) {
-
-
-            std::string np;
-            for (size_t i = 0; i < copyPathToken.size(); ++i) {
-                if (copyPathToken.at(i) != "-") {
-                    np += "/" + copyPathToken.at(i);
-                    continue;
-                }
-
-                std::vector<std::string> token = FlowString::splitNotEmpty(path, "/");
-                if (token.size() > i && FlowString::isNumber(token.at(i))) {
-                    np += "/" + token.at(i);
-                } else {
-                    np += "/" + copyPathToken.at(i);
-                }
+            const std::string npath = normelizePath(path, copyPath);
+            const std::vector<std::string> pathSplit = FlowString::splitOnLast(npath, "/");
+            const std::string &prefixPath = pathSplit.at(0);
+            std::vector<std::string> nPaths = findAllJsonValues(doc, prefixPath);
+            for (const auto &np : nPaths) {
+                rapidjson::Pointer pointer(path.c_str());
+                const auto n_np = normelizePath(np, npath);
+                rapidjson::Pointer copypointer(n_np.c_str());
+                rapidjson::Value *val = GetValueByPointer(doc, pointer);
+                rapidjson::Value nv;
+                nv.CopyFrom(*val, doc.GetAllocator());
+                SetValueByPointer(doc, copypointer, nv);
             }
-            rapidjson::Pointer pointer(path.c_str());
-            rapidjson::Pointer copypointer(np.c_str());
-            rapidjson::Value *val = GetValueByPointer(doc, pointer);
-            rapidjson::Value nv;
-            nv.CopyFrom(*val, doc.GetAllocator());
-            SetValueByPointer(doc, copypointer, nv);
-            logJson(doc);
         }
 
+        return docToString(doc);
+    }
+
+    inline std::string addValue(const std::string &value, const std::string &path, const std::string &txt) {
+        rapidjson::Document doc = parseJson(value);
+        rapidjson::Pointer pointer(path.c_str());
+        rapidjson::Value nv;
+
+        if (FlowString::isNumber(txt)) {
+            if (FlowString::isInteger(txt)) {
+                nv.SetInt(std::stoi(txt));
+            } else {
+                nv.SetFloat(std::stof(txt));
+            }
+        } else if (FlowString::isBool(txt)) {
+            nv.SetBool(FlowString::isTrue(txt));
+        } else {
+            nv.SetString(txt.c_str(), doc.GetAllocator());
+        }
+
+
+        SetValueByPointer(doc, pointer, nv);
         return docToString(doc);
     }
 
@@ -470,22 +564,36 @@ namespace FlowJson {
         return docToString(doc);
     }
 
-    inline std::string
-    addBoolValueIfOnce(const std::string &value, const std::string &path, const std::string &toCheck,
-                       const std::string &newPath) {
+    inline std::string addBoolValueIfOnce(const std::string &value, const std::string &path, const std::string &toCheck,
+                                          const std::string &newPath) {
         rapidjson::Document doc = parseJson(value);
         std::vector<std::string> paths = findAllJsonValues(doc, path);
         for (auto &path : paths) {
-            rapidjson::Pointer pointer(path.c_str());
-            auto val = GetValueByPointer(doc, pointer);
-            if (val->GetType() == rapidjson::kStringType && strcmp(val->GetString(), toCheck.c_str()) == 0) {
+            const auto val = getValue(doc, path);
+            if (val == toCheck) {
                 rapidjson::Pointer newPointer(newPath.c_str());
                 SetValueByPointer(doc, newPointer, true);
-                logJson(doc);
                 return docToString(doc);
             }
         }
         return value;
+    }
+
+    inline std::string removeValueIf(const std::string &value, const std::string &path, const std::string &toCheck,
+                                     const std::string &removePath) {
+        rapidjson::Document doc = parseJson(value);
+        std::vector<std::string> paths = findAllJsonValues(doc, path);
+        std::reverse(paths.begin(), paths.end());
+        for (auto &cpath : paths) {
+            const auto val = getValue(doc, cpath);
+            if (val == toCheck) {
+
+                const auto crp = normelizePath(cpath, removePath);
+                rapidjson::Pointer newPointer(crp.c_str());
+                EraseValueByPointer(doc, newPointer);
+            }
+        }
+        return docToString(doc);
     }
 
     inline void copyValueIf(rapidjson::Document &doc, const std::string &path, const std::string &toCheck,
@@ -541,15 +649,20 @@ namespace FlowJson {
     inline void addBoolIf(rapidjson::Document &doc, const std::string &path, const std::string &toCheck,
                           const std::string &newPath) {
         std::vector<std::string> paths = findAllJsonValues(doc, path);
-        for (auto &path : paths) {
-            rapidjson::Pointer pointer(path.c_str());
-            auto val = GetValueByPointer(doc, pointer);
-            if (val->GetType() == rapidjson::kStringType && strcmp(val->GetString(), toCheck.c_str()) == 0) {
-                std::string npath = normelizePath(path, newPath);
+        for (auto &current_path : paths) {
+            if (getValue(doc, current_path) == toCheck) {
+                std::string npath = normelizePath(current_path, newPath);
                 rapidjson::Pointer newPointer(npath.c_str());
                 SetValueByPointer(doc, newPointer, true);
             }
         }
+    }
+
+    inline std::string addBoolIf(const std::string &json, const std::string &path, const std::string &toCheck,
+                                 const std::string &newPath) {
+        rapidjson::Document json_doc = FlowJson::parseJson(json);
+        addBoolIf(json_doc, path, toCheck, newPath);
+        return docToString(json_doc);
     }
 
     inline std::string cStS(const rapidjson::Value &value) {
@@ -725,6 +838,31 @@ namespace FlowJson {
         return false;
     }
 
+    inline bool isTrue(const std::string &value, const std::string &path) {
+        rapidjson::Document doc = parseJson(value);
+        std::vector<std::string> paths = findAllJsonValues(doc, path);
+        rapidjson::Pointer pointer(path.c_str());
+        auto val = GetValueByPointer(doc, pointer);
+        return val != nullptr && val->GetType() == rapidjson::kTrueType;
+    }
+
+    inline bool isTrue(const rapidjson::Value &value, const std::string &path) {
+        rapidjson::Pointer pointer(path.c_str());
+        auto val = GetValueByPointer(value, pointer);
+        return val != nullptr && val->GetType() == rapidjson::kTrueType;
+    }
+
+    inline bool isFalse(const rapidjson::Value &value, const std::string &path) {
+        rapidjson::Pointer pointer(path.c_str());
+        auto val = GetValueByPointer(value, pointer);
+        return val != nullptr && val->GetType() == rapidjson::kFalseType;
+    }
+
+    inline bool isFalse(const std::string &value, const std::string &path) {
+        rapidjson::Document doc = parseJson(value);
+        return isFalse(doc, path);
+    }
+
     inline void addMemberTo(rapidjson::Value &value, const std::string &memberName, const std::string &memberValue,
                             rapidjson::Document &document) {
         rapidjson::Value memberNameValue(rapidjson::kStringType);
@@ -776,7 +914,7 @@ namespace FlowJson {
     inline std::vector<std::string> getKeys(rapidjson::Document &document, const std::string &path) {
         std::vector<std::string> rtn;
         auto obj = GetValueByPointer(document, rapidjson::Pointer(path.c_str()));
-        if (obj->GetType() == rapidjson::kObjectType) {
+        if (obj != nullptr && !obj->IsNull() && obj->GetType() == rapidjson::kObjectType) {
             for (auto &value : obj->GetObject()) {
                 rtn.emplace_back(value.name.GetString());
             }
@@ -788,5 +926,20 @@ namespace FlowJson {
     inline std::vector<std::string> getKeys(const std::string &values, const std::string &path) {
         rapidjson::Document document = parseJson(values);
         return getKeys(document, path);
+    }
+
+    inline std::vector<std::string> splitValue(const std::string &values, const std::string &path) {
+        std::vector<std::string> rtn;
+        rapidjson::Document document = parseJson(values);
+        const rapidjson::Pointer pointer(path.c_str());
+        const auto &toSplit = rapidjson::GetValueByPointer(document, pointer);
+        if (toSplit != nullptr && toSplit->GetType() == rapidjson::kArrayType) {
+            for (const auto &value : toSplit->GetArray()) {
+                rtn.emplace_back(toString(value));
+            }
+        } else {
+            LOG_WARNING << "Split Value is not an array";
+        }
+        return rtn;
     }
 };

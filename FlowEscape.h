@@ -31,7 +31,7 @@ public:
 
 private:
     static inline const std::string encodeString = " !%+,;<=>?@[\\]^`{|}~";
-    static inline const std::map<std::string, std::string> _decodeUrlMap = {
+    static inline const std::unordered_map<std::string, std::string> _decodeUrlMap = {
             {"%20", " "},
             {"%22", "!"},
             {"%25", "%"},
@@ -56,7 +56,7 @@ private:
             {"%7E", "~"},
             {"%7F", ""}
     };
-    static inline const std::map<std::string, std::string> _encodeUrlMap = {
+    static inline const std::unordered_map<std::string, std::string> _encodeUrlMap = {
             {" ",  "%20"},
             {"!",  "%22"},
             {"%",  "%25"},
