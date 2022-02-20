@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <chrono>
 
 template<class T = std::chrono::seconds>
@@ -61,6 +62,28 @@ public:
             LifetimeClock("Elapsed time: ", "s\n", doNotPrint) {}
 
     explicit LifetimeClock_Seconds(std::string prefix, std::string suffix, bool doNotPrint = false) :
+            LifetimeClock(std::move(prefix), std::move(suffix), doNotPrint) {}
+};
+
+class LifetimeClock_Micoseconds : public LifetimeClock<std::chrono::microseconds> {
+public:
+    explicit LifetimeClock_Micoseconds() : LifetimeClock("Elapsed time: ", "µs\n") {}
+
+    explicit LifetimeClock_Micoseconds(bool doNotPrint) :
+            LifetimeClock("Elapsed time: ", "s\n", doNotPrint) {}
+
+    explicit LifetimeClock_Micoseconds(std::string prefix, std::string suffix, bool doNotPrint = false) :
+            LifetimeClock(std::move(prefix), std::move(suffix), doNotPrint) {}
+};
+
+class LifetimeClock_Milliseconds : public LifetimeClock<std::chrono::milliseconds> {
+public:
+    explicit LifetimeClock_Milliseconds() : LifetimeClock("Elapsed time: ", "ms\n") {}
+
+    explicit LifetimeClock_Milliseconds(bool doNotPrint) :
+            LifetimeClock("Elapsed time: ", "s\n", doNotPrint) {}
+
+    explicit LifetimeClock_Milliseconds(std::string prefix, std::string suffix, bool doNotPrint = false) :
             LifetimeClock(std::move(prefix), std::move(suffix), doNotPrint) {}
 };
 

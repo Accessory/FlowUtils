@@ -65,6 +65,10 @@ public:
         }
     }
 
+    size_t size() const {
+        return tasks.size();
+    }
+
     void join() {
         isJoin = true;
         while (!tasks.empty()) {

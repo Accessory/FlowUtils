@@ -3,7 +3,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
-#include <map>
+#include <unordered_map>
 #include "Semaphore.h"
 
 class IdSemaphore {

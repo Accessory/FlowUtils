@@ -2,22 +2,23 @@
 
 
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <string>
+#include <string_view>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
-#include <regex>
+#include <boost/regex.hpp>
 #include <set>
 
 namespace FlowString {
 
-    inline bool match(const std::string &value, const std::regex &rgx) {
-        return std::regex_match(value, rgx);
+    inline bool match(const std::string &value, const boost::regex &rgx) {
+        return boost::regex_match(value, rgx);
     }
 
     inline bool match(const std::string &value, const std::string &validation) {
-        std::regex rgx(validation);
-        return std::regex_match(value, rgx);
+        boost::regex rgx(validation);
+        return boost::regex_match(value, rgx);
     }
 
     inline std::vector<std::string> splitToStringVector(std::string line, std::string delimiter) {
@@ -47,7 +48,7 @@ namespace FlowString {
         return rtn;
     }
 
-    inline std::vector<std::string> splitNotEmpty(std::string line, std::string delimiter) {
+    inline std::vector<std::string> splitNotEmpty(const std::string &line, const std::string &delimiter) {
         std::vector<std::string> tmp;
         boost::split(tmp, line, boost::is_any_of(delimiter));
         std::vector<std::string> rtn;
@@ -136,10 +137,10 @@ namespace FlowString {
     }
 
     inline size_t findRegex(const std::string &text, const std::string &search, const size_t &position) {
-        std::smatch m;
-        std::regex e(search);
+        boost::smatch m;
+        boost::regex e(search);
         std::string s = text.substr(position);
-        if (regex_search(s, m, e)) return m.position() + position;
+        if (boost::regex_search(s, m, e)) return m.position() + position;
         return std::string::npos;
     }
 
@@ -186,8 +187,8 @@ namespace FlowString {
     getAllFromRegexGroup(const std::string &text, const std::string &search, const size_t group) {
         std::vector<std::string> rtn;
         size_t position = 0;
-        std::regex rgx(search);
-        std::smatch mtch;
+        boost::regex rgx(search);
+        boost::smatch mtch;
         do {
             std::string toSearch = text.substr(position);
             if (!regex_search(toSearch, mtch, rgx)) break;
@@ -203,8 +204,8 @@ namespace FlowString {
                           const size_t group2) {
         std::unordered_map<std::string, std::string> rtn;
         size_t position = 0;
-        std::regex rgx(search);
-        std::smatch mtch;
+        boost::regex rgx(search);
+        boost::smatch mtch;
         do {
             std::string toSearch = text.substr(position);
             if (!regex_search(toSearch, mtch, rgx)) break;
@@ -218,8 +219,8 @@ namespace FlowString {
     inline std::string getFromRegexGroup(const std::string &text, const std::string &search, const size_t group) {
         std::vector<std::string> rtn;
         size_t position = 0;
-        std::regex rgx(search);
-        std::smatch mtch;
+        boost::regex rgx(search);
+        boost::smatch mtch;
         std::string toSearch = text.substr(position);
         if (!regex_search(toSearch, mtch, rgx)) return "";
         return mtch[group];
@@ -229,8 +230,8 @@ namespace FlowString {
         std::unordered_map<std::string, std::string> rtn;
 
         size_t position = 0;
-        std::regex rgx(search);
-        std::smatch mtch;
+        boost::regex rgx(search);
+        boost::smatch mtch;
         do {
             std::string toSearch = text.substr(position);
             if (!regex_search(toSearch, mtch, rgx)) break;

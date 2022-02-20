@@ -4,7 +4,7 @@
 #include <boost/filesystem.hpp>
 #endif
 
-#include <map>
+#include <unordered_map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -418,6 +418,20 @@ namespace FlowFile {
             name[pos] = changeTo;
             pos = name.find_first_of(illegalChars, pos + 1);
         }
+    }
+
+    inline void fullPathNameSanitize(std::string &name, const char changeTo = ' ') {
+        static const std::string illegalChars = "*.\"[]:;|,-";
+        auto pos = name.find_first_of(illegalChars);
+        while (pos != std::string::npos) {
+            name[pos] = changeTo;
+            pos = name.find_first_of(illegalChars, pos + 1);
+        }
+    }
+
+    inline std::string sanitizeFullPathName(std::string name, const char changeTo = ' ') {
+        fullPathNameSanitize(name, changeTo);
+        return name;
     }
 
     inline std::string sanitizePathName(std::string name, const char changeTo = ' ') {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <regex>
+#include <boost/regex.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
@@ -14,8 +14,8 @@ namespace FlowUUID {
     }
 
     inline bool IsUUID(const std::string &uuid) {
-        const std::regex UUID_REGEX(UUID_REGEX_STRING);
-        return std::regex_match(uuid, UUID_REGEX);
+        const boost::regex UUID_REGEX(UUID_REGEX_STRING);
+        return boost::regex_match(uuid, UUID_REGEX);
     }
 
     inline std::string UUID_String() {
